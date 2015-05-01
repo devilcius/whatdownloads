@@ -1,0 +1,7 @@
+*.pyc
+*.db
+*-shm
+*-wal
+errors.py*
+cookie
+predatum_cookie
