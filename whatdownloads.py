@@ -72,7 +72,7 @@ def checkSnatched(what, what_cd_user, db, alreadysnatched, page):
 
 if __name__ == '__main__':
     #params
-    pagestocheck = 1
+    pagestocheck = 3
     #end params
     db = organizer.DB()
     alreadysnatched = db.getSnatched()
@@ -92,4 +92,3 @@ if __name__ == '__main__':
     print "Proceding to sync.."
     sync = organizer.Sync(db)
     sync.copySnatched()
-

@@ -19,6 +19,7 @@ from sqlite3 import *
 import json as simplejson
 import re
 from time import sleep
+import ssl
 
 #elapsedTime = 0;
 
@@ -198,48 +199,71 @@ class Scan():
 
 class Predatum():
 
-    site = "https://predatum.com"
+    site = "https://predatum.org"
     userAgent = 'predatumupdater [1.0]'
 
     def __init__(self, user, password, conn):
 
         self.username = user
         self.password = password
-        self.cookieFile = 'predatum_cookie'
+        self.cookieFileName = 'predatum_cookie'
+        self.cookieJar = None
+        self.opener = None
+        self.cookieJar = cookielib.MozillaCookieJar()
+
+
         self.setUpCookiesAndUserAgent()
         self.localdb = DataBase(conn)
+        self.postattemps = 0
 
 
     def setUpCookiesAndUserAgent(self):
 
-        cookieJar = cookielib.LWPCookieJar()
-        opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cookieJar))
-        opener.addheaders = [('User-Agent', Predatum.userAgent)]
-        urllib2.install_opener(opener)
-
-        self.loadCookiesFromFile(cookieJar)
-
+        if os.access(self.cookieFileName, os.F_OK):
+            self.cookieJar.load(self.cookieFileName)
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        self.opener = urllib2.build_opener(
+            urllib2.HTTPRedirectHandler(),
+            urllib2.HTTPHandler(debuglevel=0),
+            urllib2.HTTPSHandler(debuglevel=0, context=ctx),
+            urllib2.HTTPCookieProcessor(self.cookieJar)
+        )
+        self.opener.addheaders = [('User-Agent', Predatum.userAgent)]
+        #
+        # opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(self.cookieJar))
+        #
+        # urllib2.install_opener(opener)
+        #
+        # self.loadCookiesFromFile()
         try:
             self.authenticate()
-            print "using cookie"
+            self.cookieJar.save(self.cookieFileName)
         except Error:
-            self.getFreshCookies()
+            print "authentication error"
 
-    def loadCookiesFromFile(self, cookieJar):
-        try:
-            cookieJar.load(self.cookieFile)
-        except IOError:
-            self.authenticate()
-            cookieJar.save(self.cookieFile)
+    # def loadCookiesFromFile(self):
+    #     try:
+    #         self.cookieJar.load(self.cookieFileName)
+    #     except IOError:
+    #         self.cookieJar = cookielib.MozillaCookieJar()
+    #         self.cookieJar.save(self.cookieFileName)
+    #         opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(self.cookieJar))
+    #         opener.addheaders = [('User-Agent', Predatum.userAgent)]
+    #         urllib2.install_opener(opener)
+    #         self.authenticate()
+    #         self.cookieJar.save(self.cookieFileName)
+    #         print "new cookie created"
 
     def getFreshCookies(self):
-        cookieJar = cookielib.LWPCookieJar()
-        opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cookieJar))
-        opener.addheaders = [('User-Agent', Predatum.userAgent)]
-        urllib2.install_opener(opener)
+        # self.cookieJar = cookielib.MozillaCookieJar()
+        # opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(self.cookieJar))
+        # opener.addheaders = [('User-Agent', Predatum.userAgent)]
+        # urllib2.install_opener(opener)
         self.authenticate()
-        cookieJar.save(self.cookieFile)
-        print "new cookie created"
+        self.cookieJar.save(self.cookieFileName)
+        print "cookie refreshed"
 
     def authenticate(self):
         loginURL = Predatum.site + "/api/user/authenticate"
@@ -249,10 +273,10 @@ class Predatum():
                      'submit': 'Submit'})
         try:
             request = urllib2.Request(loginURL, data)
-            response = urllib2.urlopen(request)
+            response = self.opener.open(request)
             self.checkIfAuthenticated(response.read())
         except HTTPError, e:
-            print 'The server couldn\'t fulfill the request.'
+            print 'The server couldn\'t fulfill the authentication request.'
             print 'Error code: ', e.read()
         except URLError, e:
             print 'We failed to reach a server.'
@@ -344,7 +368,7 @@ class Predatum():
             try:
                 print "about to insert %s from %s" % (album['name'], album['folder_path'])
                 request = urllib2.Request(Predatum.site + "/api/release", params, headers)
-                response = urllib2.urlopen(request)
+                response = self.opener.open(request)
                 responsebody = response.read()
 
                 json = simplejson.loads(responsebody)
@@ -358,7 +382,12 @@ class Predatum():
             except HTTPError, e:
                 print 'The server couldn\'t fulfill the request.'
                 print 'Error code: ', e.read()
-                quit()
+                if e.code == 401 and self.postattemps < 2:
+                    self.getFreshCookies()
+                    self.postattemps = self.postattemps + 1
+                else:
+                    self.postattemps = 0
+                    quit()
             except URLError, e:
                 print 'We failed to reach a server.'
                 print 'Reason: ', e.reason
