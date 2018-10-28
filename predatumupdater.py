@@ -204,7 +204,7 @@ class Scan():
 
 class Predatum():
 
-    site = "http://localhost:2014"
+    site = "https://predatum.org"
     userAgent = 'predatumupdater [1.0]'
 
     def __init__(self, user, password, conn):
