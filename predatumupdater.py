@@ -23,6 +23,8 @@ import ssl
 
 #elapsedTime = 0;
 
+RELEASE_TYPE_MAPPINGS = {'Album' : 1, 'EP': 3, 'Anthology': 1, 'Single': 2}
+
 class Error(Exception):
     """Base class for exceptions in this module."""
     pass
@@ -39,7 +41,7 @@ class DataBase():
         # Creates MP3 table if not exists
         self.curs.execute('''create table if not exists tracks
           (id integer primary key, folder_path text, file_name text, artist text, title text,
-          album text, genre text, year int, track integer, file_size integer, file_date text, track_duration integer,
+          album text, album_type int, genre text, year int, track integer, file_size integer, file_date text, track_duration integer,
           bitrate integer, quality text, lame_encoded integer, file_type text, comment text, rating integer, pred_updated integer)''')  # lint:ok
 
     def checkRecordExists(self, file_name, file_size, album):
@@ -47,21 +49,21 @@ class DataBase():
         return self.conn.execute("select id from tracks where file_name = ? and file_size = ? and album = ?",(file_name, file_size, album)).fetchone() != None
 
 
-    def updateDB(self,folder_path,file_name, artist, title, album, genre, year, track, file_size, file_date, track_duration, bitrate, quality, lame_encoded, file_type, comment, rating):
+    def updateDB(self,folder_path,file_name, artist, title, album, album_type, genre, year, track, file_size, file_date, track_duration, bitrate, quality, lame_encoded, file_type, comment, rating):
 
         if self.checkRecordExists(file_name, file_size, album):
             print "file %s from %s exists, skipping..." % (file_name, artist)
         else:
-            self.curs.execute("insert into tracks (folder_path, file_name, artist, title, album, genre, year, track, file_size, file_date,\
-                                track_duration, bitrate, quality, lame_encoded, file_type, comment, rating, pred_updated) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0 )", \
-                              (folder_path, file_name, artist, title, album, genre, year, track, file_size, file_date, \
+            self.curs.execute("insert into tracks (folder_path, file_name, artist, title, album, album_type, genre, year, track, file_size, file_date,\
+                                track_duration, bitrate, quality, lame_encoded, file_type, comment, rating, pred_updated) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0 )", \
+                              (folder_path, file_name, artist, title, album, album_type, genre, year, track, file_size, file_date, \
                                track_duration, bitrate, quality, lame_encoded, file_type, comment, rating))
             print "inserting %s to local db" % file_name
 
         self.conn.commit()
 
     def getFolderNotPostedToSite(self):
-        return self.curs.execute("select folder_path, file_name, artist, title, album, genre, year, \
+        return self.curs.execute("select folder_path, file_name, artist, title, album, album_type, genre, year, \
                                 track, file_size, file_date, track_duration, bitrate, quality, \
                                 lame_encoded, file_type, comment, rating \
                                 from tracks \
@@ -147,7 +149,7 @@ class Scan():
 
         self.db = DataBase(conn);
 
-    def folders(self, rootfolder):
+    def folders(self, rootfolder, albumtype):
         filecount = 0
         for root, dirs, files in os.walk(rootfolder):
             print "about to check %s" % root
@@ -159,14 +161,14 @@ class Scan():
                 if self.db.folderAlreadyChecked(folderName):
                     print 'folder already checked, skipping'
                 else:
-                    if self.files(files, root) > 0:
+                    if self.files(files, root, albumtype) > 0:
                         filecount = filecount + len(files)
 
 
         print "checked %d files" % filecount
         return True
 
-    def files(self, folderfiles, folderpath):
+    def files(self, folderfiles, folderpath, albumtype):
         trackcount = 0
         audioFile = AudioFile()
         currentAlbum = ''
@@ -184,11 +186,14 @@ class Scan():
                     tracknum = audioFileData['tracknumber'][0]
                     if tracknum is None:
                         tracknum = trackcount
-
+                    #TODO: dictionnary to map album type and add column to table
                     #update table
+                    releasetype = None
+                    if albumtype in RELEASE_TYPE_MAPPINGS:
+                        releasetype = RELEASE_TYPE_MAPPINGS[albumtype]
                     self.db.updateDB(str(folderpath + "/").decode("utf-8"), file.decode("utf-8"), \
                         audioFileData['artist'][0], audioFileData['title'][0], \
-                        audioFileData['album'][0], audioFileData['genre'][0], \
+                        audioFileData['album'][0], releasetype, audioFileData['genre'][0], \
                         audioFileData['date'][0],  tracknum, audioFileData['size'], \
                         audioFileData['file_date'], audioFileData['playtime'], \
                         audioFileData['bitrate'], audioFileData['quality'], audioFileData['lame_encoded'], \
@@ -199,7 +204,7 @@ class Scan():
 
 class Predatum():
 
-    site = "https://predatum.org"
+    site = "http://localhost:2014"
     userAgent = 'predatumupdater [1.0]'
 
     def __init__(self, user, password, conn):
@@ -305,9 +310,9 @@ class Predatum():
 #        print "preparing dictionary to post"
         for row in recordsToUpdate:
             '''
-            folder_path, file_name, artist, title, album,
-            genre, year, track, file_size, file_date, track_duration,
-            bitrate, quality, lame_encoded, file_type
+            folder_path, file_name, artist, title, album, album_type, genre, year,
+            track, file_size, file_date, track_duration, bitrate, quality,
+            lame_encoded, file_type, comment, rating
             '''
             currentAlbum = row[4]
             if trackCounter == 0:
@@ -319,8 +324,9 @@ class Predatum():
                 albumCounter = albumCounter + 1
                 albumsToUpdate[albumCounter] = {}
                 albumsToUpdate[albumCounter]['name'] = row[4]
+                albumsToUpdate[albumCounter]['type'] = row[5]
                 albumsToUpdate[albumCounter]['folder_path'] = row[0]
-                albumsToUpdate[albumCounter]['year'] = row[6]
+                albumsToUpdate[albumCounter]['year'] = row[7]
                 albumsToUpdate[albumCounter]['is_va'] = isAlbumVA
                 albumsToUpdate[albumCounter]['tracks'] = {}
 
@@ -331,17 +337,17 @@ class Predatum():
             albumsToUpdate[albumCounter]['tracks'][trackCounter]['artist'] = row[2]
             albumsToUpdate[albumCounter]['tracks'][trackCounter]['file_name'] = row[1]
             albumsToUpdate[albumCounter]['tracks'][trackCounter]['title'] = row[3]
-            albumsToUpdate[albumCounter]['tracks'][trackCounter]['genre'] = row[5]
-            albumsToUpdate[albumCounter]['tracks'][trackCounter]['track'] = row[7]
-            albumsToUpdate[albumCounter]['tracks'][trackCounter]['file_size'] = row[8]
-            albumsToUpdate[albumCounter]['tracks'][trackCounter]['file_date'] = row[9]
-            albumsToUpdate[albumCounter]['tracks'][trackCounter]['duration'] = row[10]
-            albumsToUpdate[albumCounter]['tracks'][trackCounter]['bitrate'] = row[11]
-            albumsToUpdate[albumCounter]['tracks'][trackCounter]['quality'] = row[12]
-            albumsToUpdate[albumCounter]['tracks'][trackCounter]['is_lame_encoded'] = row[13]
-            albumsToUpdate[albumCounter]['tracks'][trackCounter]['file_type'] = row[14]
-            albumsToUpdate[albumCounter]['tracks'][trackCounter]['comment'] = row[15]
-            albumsToUpdate[albumCounter]['tracks'][trackCounter]['rating'] = row[16]
+            albumsToUpdate[albumCounter]['tracks'][trackCounter]['genre'] = row[6]
+            albumsToUpdate[albumCounter]['tracks'][trackCounter]['track'] = row[8]
+            albumsToUpdate[albumCounter]['tracks'][trackCounter]['file_size'] = row[9]
+            albumsToUpdate[albumCounter]['tracks'][trackCounter]['file_date'] = row[10]
+            albumsToUpdate[albumCounter]['tracks'][trackCounter]['duration'] = row[11]
+            albumsToUpdate[albumCounter]['tracks'][trackCounter]['bitrate'] = row[12]
+            albumsToUpdate[albumCounter]['tracks'][trackCounter]['quality'] = row[13]
+            albumsToUpdate[albumCounter]['tracks'][trackCounter]['is_lame_encoded'] = row[14]
+            albumsToUpdate[albumCounter]['tracks'][trackCounter]['file_type'] = row[15]
+            albumsToUpdate[albumCounter]['tracks'][trackCounter]['comment'] = row[16]
+            albumsToUpdate[albumCounter]['tracks'][trackCounter]['rating'] = row[17]
             if firstArtist != row[2]:
                 albumsToUpdate[albumCounter]['is_va'] = True
 

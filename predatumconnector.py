@@ -10,6 +10,7 @@ import ConfigParser
 from sqlite3 import *
 import sys
 
+
 class Error(Exception):
     """Base class for exceptions in this module."""
     pass
@@ -48,9 +49,9 @@ class Connector():
 
     def getSnatchedToUpdate(self):
         snatchedToUpdate = {}
-        for row in self.curs.execute("select id, fixed_dir from snatched where pred_updated = 0 and fixed_dir IS NOT NULL"):
+        for row in self.curs.execute("select id, fixed_dir, type from snatched where pred_updated = 0 and fixed_dir IS NOT NULL"):
             if row[1]:
-                snatchedToUpdate[row[0]] = row[1]
+                snatchedToUpdate[row[0]] = (row[1], row[2])
 
         return snatchedToUpdate
 
@@ -64,10 +65,11 @@ class Connector():
         self.conn.execute('''create table if not exists albums_updated (album text)''')
         self.conn.commit()
         for k, v in releasesToUpdate.items():
-            print "updating %s" % v
-            albumpath = v
+            print "updating %s" % v[0]
+            albumpath = v[0]
+            albumtype = v[1]
             self.conn.execute("insert into albums_updated (album) values (?)", (albumpath[albumpath.rfind("/")+1:len(albumpath)],))
-            if scan.folders(albumpath):
+            if scan.folders(albumpath, albumtype):
                 self.conn.execute("update snatched set pred_updated = 1 where id = %d" % k)
             else:
                 print "update from db failed!"
@@ -121,4 +123,3 @@ class Connector():
 
 if __name__ == "__main__":
     print "Hello World";
-
