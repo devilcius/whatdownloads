@@ -23,7 +23,7 @@ import ssl
 
 #elapsedTime = 0;
 
-RELEASE_TYPE_MAPPINGS = {'Album' : 1, 'EP': 3, 'Anthology': 1, 'Single': 2}
+RELEASE_TYPE_MAPPINGS = {'Album' : 1, 'EP': 3, 'Anthology': 1, 'Single': 2, 'Live album': 4}
 
 class Error(Exception):
     """Base class for exceptions in this module."""
@@ -186,7 +186,6 @@ class Scan():
                     tracknum = audioFileData['tracknumber'][0]
                     if tracknum is None:
                         tracknum = trackcount
-                    #TODO: dictionnary to map album type and add column to table
                     #update table
                     releasetype = None
                     if albumtype in RELEASE_TYPE_MAPPINGS:
