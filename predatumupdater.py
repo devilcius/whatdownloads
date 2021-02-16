@@ -1,12 +1,12 @@
 # -*- coding: utf_8 -*-
 #from time import sleep, clock, time
-import urllib2
-from urllib2 import URLError, HTTPError
+import urllib.request, urllib.error, urllib.parse
+from urllib.error import URLError, HTTPError
 import os.path
-import ConfigParser
-import urllib
-import cookielib
-from httplib import BadStatusLine
+import configparser
+import urllib.request, urllib.parse, urllib.error
+import http.cookiejar
+from http.client import BadStatusLine
 import mutagen
 # important:
 # modified flac.py file to get flac bitrate
@@ -52,13 +52,13 @@ class DataBase():
     def updateDB(self,folder_path,file_name, artist, title, album, album_type, genre, year, track, file_size, file_date, track_duration, bitrate, quality, lame_encoded, file_type, comment, rating):
 
         if self.checkRecordExists(file_name, file_size, album):
-            print "file %s from %s exists, skipping..." % (file_name, artist)
+            print(("file %s from %s exists, skipping..." % (file_name, artist)))
         else:
             self.curs.execute("insert into tracks (folder_path, file_name, artist, title, album, album_type, genre, year, track, file_size, file_date,\
                                 track_duration, bitrate, quality, lame_encoded, file_type, comment, rating, pred_updated) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0 )", \
                               (folder_path, file_name, artist, title, album, album_type, genre, year, track, file_size, file_date, \
                                track_duration, bitrate, quality, lame_encoded, file_type, comment, rating))
-            print "inserting %s to local db" % file_name
+            print(("inserting %s to local db" % file_name))
 
         self.conn.commit()
 
@@ -97,46 +97,46 @@ class AudioFile():
         audioFileData['lame_encoded'] = 0
         audioFileData['date'] = audioFileData['rating'] = [0]
 
-        try:
-            audioFileData['size'] = os.path.getsize(file)
-            audioFileData['file_type'] = fileExtension[1:].upper()
-            t = os.path.getctime(file)
-            audioFileData['file_date'] = datetime.datetime.fromtimestamp(t).strftime("%Y/%m/%d %H:%M:%S")
-            #set metadata
-            for tag, value in mutagen.File(file, easy=True).items():
-                # fix year tag
-                if tag == 'date':
-                    try:
-                        regyear = re.compile('[1-2][0-9][0-9][0-9]')
-                        audioFileData['date'] = regyear.search(audioFileData["date"][0]).group(0)
-                    except:
-                        audioFileData['date'] = [0]
-                #check for empty arrays
-                if len(value) < 1:
-                    value = [None]
+        # try:
+        audioFileData['size'] = os.path.getsize(file)
+        audioFileData['file_type'] = fileExtension[1:].upper()
+        t = os.path.getctime(file)
+        audioFileData['file_date'] = datetime.datetime.fromtimestamp(t).strftime("%Y/%m/%d %H:%M:%S")
+        #set metadata
+        for tag, value in list(mutagen.File(file, easy=True).items()):
+            # fix year tag
+            if tag == 'date':
+                try:
+                    regyear = re.compile('[1-2][0-9][0-9][0-9]')
+                    audioFileData['date'] = regyear.search(audioFileData["date"][0]).group(0)
+                except:
+                    audioFileData['date'] = [0]
+            #check for empty arrays
+            if len(value) < 1:
+                value = [None]
 
-                audioFileData[tag] = value
+            audioFileData[tag] = value
 
-            #set audio info
-            if fileExtension == '.mp3':
-                audioFile = MP3(file)
-                if audioFile.info.lame_info:
-                    audioFileData['lame_encoded'] = 1
-                    audioFileData['quality'] = audioFile.info.lame_preset
-            elif fileExtension == '.flac':
-                audioFile = FLAC(file)
-                audioFileData['quality'] = 'lossless'
-            else:
-                audioFile = OggVorbis(file)
+        #set audio info
+        if fileExtension == '.mp3':
+            audioFile = MP3(file)
+            if audioFile.info.lame_info:
+                audioFileData['lame_encoded'] = 1
+                audioFileData['quality'] = audioFile.info.lame_preset
+        elif fileExtension == '.flac':
+            audioFile = FLAC(file)
+            audioFileData['quality'] = 'lossless'
+        else:
+            audioFile = OggVorbis(file)
 
-            audioFileData['playtime'] = int(audioFile.info.length)
-            audioFileData['bitrate'] = int(audioFile.info.bitrate/1000)
+        audioFileData['playtime'] = int(audioFile.info.length)
+        audioFileData['bitrate'] = int(audioFile.info.bitrate/1000)
 
-            return audioFileData
+        return audioFileData
 
-        except Exception, msg:
-            print "error retrieving audio data from %s: %s" % (file,msg)
-            return None
+        # except Exception as msg:
+        #     print(("error retrieving audio data from %s: %s" % (file,msg)))
+        #     return None
 
 
 
@@ -152,20 +152,20 @@ class Scan():
     def folders(self, rootfolder, albumtype):
         filecount = 0
         for root, dirs, files in os.walk(rootfolder):
-            print "about to check %s" % root
+            print(("about to check %s" % root))
             if self.recheckFolders:
                 if self.files(files, root) > 0:
                     filecount = filecount + len(files)
             else:
-                folderName = "%s/" % root.decode('utf-8')
+                folderName = "%s/" % root
                 if self.db.folderAlreadyChecked(folderName):
-                    print 'folder already checked, skipping'
+                    print('folder already checked, skipping')
                 else:
                     if self.files(files, root, albumtype) > 0:
                         filecount = filecount + len(files)
 
 
-        print "checked %d files" % filecount
+        print(("checked %d files" % filecount))
         return True
 
     def files(self, folderfiles, folderpath, albumtype):
@@ -190,7 +190,7 @@ class Scan():
                     releasetype = None
                     if albumtype in RELEASE_TYPE_MAPPINGS:
                         releasetype = RELEASE_TYPE_MAPPINGS[albumtype]
-                    self.db.updateDB(str(folderpath + "/").decode("utf-8"), file.decode("utf-8"), \
+                    self.db.updateDB(str(folderpath + "/"), file, \
                         audioFileData['artist'][0], audioFileData['title'][0], \
                         audioFileData['album'][0], releasetype, audioFileData['genre'][0], \
                         audioFileData['date'][0],  tracknum, audioFileData['size'], \
@@ -213,7 +213,7 @@ class Predatum():
         self.cookieFileName = 'predatum_cookie'
         self.cookieJar = None
         self.opener = None
-        self.cookieJar = cookielib.MozillaCookieJar()
+        self.cookieJar = http.cookiejar.MozillaCookieJar()
 
 
         self.setUpCookiesAndUserAgent()
@@ -228,11 +228,11 @@ class Predatum():
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
-        self.opener = urllib2.build_opener(
-            urllib2.HTTPRedirectHandler(),
-            urllib2.HTTPHandler(debuglevel=0),
-            urllib2.HTTPSHandler(debuglevel=0, context=ctx),
-            urllib2.HTTPCookieProcessor(self.cookieJar)
+        self.opener = urllib.request.build_opener(
+            urllib.request.HTTPRedirectHandler(),
+            urllib.request.HTTPHandler(debuglevel=0),
+            urllib.request.HTTPSHandler(debuglevel=0, context=ctx),
+            urllib.request.HTTPCookieProcessor(self.cookieJar)
         )
         self.opener.addheaders = [('User-Agent', Predatum.userAgent)]
         #
@@ -245,7 +245,7 @@ class Predatum():
             self.authenticate()
             self.cookieJar.save(self.cookieFileName)
         except Error:
-            print "authentication error"
+            print("authentication error")
 
     # def loadCookiesFromFile(self):
     #     try:
@@ -267,31 +267,32 @@ class Predatum():
         # urllib2.install_opener(opener)
         self.authenticate()
         self.cookieJar.save(self.cookieFileName)
-        print "cookie refreshed"
+        print("cookie refreshed")
 
     def authenticate(self):
         loginURL = Predatum.site + "/api/user/authenticate"
-        data = urllib.urlencode({'email': self.username,
-                     'password': self.password,
-                     'remember': '1',
-                     'submit': 'Submit'})
+        params = dict(email = self.username,
+                     password = self.password,
+                     remember = '1',
+                     submit = 'Submit')
+        data = urllib.parse.urlencode(params).encode('utf-8')
         try:
-            request = urllib2.Request(loginURL, data)
+            request = urllib.request.Request(loginURL, data)
             response = self.opener.open(request)
             self.checkIfAuthenticated(response.read())
-        except HTTPError, e:
-            print 'The server couldn\'t fulfill the authentication request.'
-            print 'Error code: ', e.read()
-        except URLError, e:
-            print 'We failed to reach a server.'
-            print 'Reason: ', e.reason
-        except BadStatusLine, e:
-            print "the status line can’t be parsed as a valid HTTP/1.0 or 1.1 status line: ", e.line
+        except HTTPError as e:
+            print('The server couldn\'t fulfill the authentication request.')
+            print(('Error code: ', e.read()))
+        except URLError as e:
+            print('We failed to reach a server.')
+            print(('Reason: ', e.reason))
+        except BadStatusLine as e:
+            print(("the status line can’t be parsed as a valid HTTP/1.0 or 1.1 status line: ", e.line))
 
     def checkIfAuthenticated(self, response):
         json = simplejson.loads(response)
         if (json['error']):
-          print 'Login page returned: '  + json['error']
+          print(('Login page returned: '  + json['error']))
           quit()
 
 
@@ -361,50 +362,50 @@ class Predatum():
                     "Accept": "*/*"}
 
 
-        albumstopost = self.getAlbumsToPost().items()
+        albumstopost = list(self.getAlbumsToPost().items())
 
 #        print "ready to post to predatum at %d" % (time.time() - elapsedTime)
         if len(albumstopost) < 1:
-            print "site up to date"
+            print("site up to date")
 
         for index, album in albumstopost:
-            params = simplejson.dumps(album)
+            params = simplejson.dumps(album).encode("utf-8")
             responsebody = None
             try:
-                print "about to insert %s from %s" % (album['name'], album['folder_path'])
-                request = urllib2.Request(Predatum.site + "/api/release", params, headers)
+                print(("about to insert %s from %s" % (album['name'], album['folder_path'])))
+                request = urllib.request.Request(Predatum.site + "/api/release", params, headers)
                 response = self.opener.open(request)
                 responsebody = response.read()
 
                 json = simplejson.loads(responsebody)
                 if json['error'] != 1:
                     self.setAlbumSubmitted(album)
-                    print json['message']
+                    print((json['message']))
 #                    print "posted ok at %d" % (time.time() - elapsedTime)
                 else:
-                    print json['message']
+                    print((json['message']))
                     quit()
-            except HTTPError, e:
-                print 'The server couldn\'t fulfill the request.'
-                print 'Error code: ', e.read()
+            except HTTPError as e:
+                print('The server couldn\'t fulfill the request.')
+                print(('Error code: ', e.read()))
                 if e.code == 401 and self.postattemps < 2:
                     self.getFreshCookies()
                     self.postattemps = self.postattemps + 1
                 else:
                     self.postattemps = 0
                     quit()
-            except URLError, e:
-                print 'We failed to reach a server.'
-                print 'Reason: ', e.reason
+            except URLError as e:
+                print('We failed to reach a server.')
+                print(('Reason: ', e.reason))
                 quit()
-            except BadStatusLine, e:
-                print "the status line can’t be parsed as a valid HTTP/1.0 or 1.1 status line: ", e.line
+            except BadStatusLine as e:
+                print(("the status line can’t be parsed as a valid HTTP/1.0 or 1.1 status line: ", e.line))
                 quit()
-            except ValueError, e:
-                print "error processing json, %s:\n%s" % (e, responsebody)
+            except ValueError as e:
+                print(("error processing json, %s:\n%s" % (e, responsebody)))
                 quit()
-            except Exception, msg:
-                print "unknown error: %s.\nServer response: %s" % (msg, responsebody)
+            except Exception as msg:
+                print(("unknown error: %s.\nServer response: %s" % (msg, responsebody)))
                 quit()
 
 
@@ -412,7 +413,7 @@ class Predatum():
 
 
     def setAlbumSubmitted(self, album):
-        for index, track in album['tracks'].items():
+        for index, track in list(album['tracks'].items()):
             self.localdb.setRecordUpdatedInPredatum(track['file_name'], track['file_size']);
 
 
@@ -423,7 +424,7 @@ def getFileExtension(filename):
 
 
 def main():
-    print "Module to update local and remote predatum db"
+    print("Module to update local and remote predatum db")
 
 
 if __name__ == "__main__":

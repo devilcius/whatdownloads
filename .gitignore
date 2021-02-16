@@ -2,6 +2,7 @@
 *.db
 *-shm
 *-wal
+*.bk
 errors.py*
 cookie
 predatum_cookie

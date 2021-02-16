@@ -6,7 +6,7 @@ __date__ ="$Dec 6, 2012 11:10:42 AM$"
 
 import logging
 import predatumupdater
-import ConfigParser
+import configparser
 from sqlite3 import *
 import sys
 
@@ -64,15 +64,15 @@ class Connector():
         # create table with temp data to gather releases updated and send email
         self.conn.execute('''create table if not exists albums_updated (album text)''')
         self.conn.commit()
-        for k, v in releasesToUpdate.items():
-            print "updating %s" % v[0]
+        for k, v in list(releasesToUpdate.items()):
+            print("updating %s" % v[0])
             albumpath = v[0]
             albumtype = v[1]
             self.conn.execute("insert into albums_updated (album) values (?)", (albumpath[albumpath.rfind("/")+1:len(albumpath)],))
             if scan.folders(albumpath, albumtype):
                 self.conn.execute("update snatched set pred_updated = 1 where id = %d" % k)
             else:
-                print "update from db failed!"
+                print("update from db failed!")
                 break
         self.conn.commit()
         self.curs.execute("select distinct album from albums_updated");
@@ -113,13 +113,13 @@ class Connector():
 
         #s = smtplib.SMTP_SSL('smtp.gmail.com', 465)
         try:
-            print 'INFO','Emailing %s with a notification.'%self.grecipient
+            print('INFO','Emailing %s with a notification.'%self.grecipient)
             s.login(self.gmail, self.gpass)
             s.sendmail(self.gmail, self.grecipient, msg.as_string())
             s.quit()
-        except Exception, e:
-            print 'ERROR', 'Could not send notify email. Error: %s'%e.smtp_error
+        except Exception as e:
+            print('ERROR', 'Could not send notify email. Error: %s'%e.smtp_error)
 
 
 if __name__ == "__main__":
-    print "Hello World";
+    print("Hello World");

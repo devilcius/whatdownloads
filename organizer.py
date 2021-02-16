@@ -6,7 +6,7 @@ import datetime
 import shutil
 import os
 import re
-import ConfigParser
+import configparser
 from utilities import removeDisallowedFilenameChars
 from mutagen.flac import FLAC
 from mutagen.mp3 import MP3
@@ -104,7 +104,7 @@ class FixMetadata():
 
     def scanFiles(self,folderpath, id):
         for root, dirs, files in os.walk(folderpath):
-            print "about to check %s" % root
+            print("about to check %s" % root)
             badTags = False
             #meta tags that can be retrieved from what.cd
             metaTags = ['album', 'artist','genre','date']
@@ -114,14 +114,14 @@ class FixMetadata():
                     flacData = FLAC((os.path.join(root,file)))
                     for tag in metaTags:
                         if tag not in flacData  or tag == '':
-                            print "no %s tag found in %s" % (tag,file)
+                            print("no %s tag found in %s" % (tag,file))
                             badTags = True
                             whattag = self.db.findTagInWhatSnatched(id, tag)
                             if whattag:
                                 self.updateFlacMeta((os.path.join(root,file)), tag, whattag)
-                                print "updated from what.cd!"
+                                print("updated from what.cd!")
                             else:
-                                print "not found in local DB neither..."
+                                print("not found in local DB neither...")
 
                 elif self.isMP3File(os.path.join(root,file)) and os.path.splitext(os.path.join(root,file))[1] == '.mp3':
                     try:
@@ -129,21 +129,21 @@ class FixMetadata():
                         for tag in metaTags:
 
                             if tag not in mp3Data or tag == '':
-                                print "no %s tag found in %s" % (tag,file)
+                                print("no %s tag found in %s" % (tag,file))
                                 badTags = True
                                 whattag = self.db.findTagInWhatSnatched(id, tag)
                                 if whattag:
                                     self.updateMP3Meta((os.path.join(root,file)), tag, whattag)
-                                    print "updated from what.cd!"
+                                    print("updated from what.cd!")
                                 else:
-                                    print "not found in local DB neither..."
+                                    print("not found in local DB neither...")
                     except:
-                        print "mp3 file corrupt??"
+                        print("mp3 file corrupt??")
 
             if badTags:
                 badTags = False
             else:
-                print "All tags ok"
+                print("All tags ok")
 
         return True
 
@@ -152,7 +152,7 @@ class FixMetadata():
 class Sync():
 
     def __init__(self, db):
-        self.config = ConfigParser.ConfigParser()
+        self.config = configparser.ConfigParser()
         self.config.read('whatdownloads.cfg')
         self.storageFolder = self.config.get("paths", "storagefolder")
         self.watchfolder = self.config.get("paths", "watchfolder")
@@ -171,14 +171,14 @@ class Sync():
 
         for row in foldersToUpdate:
             if row[1]:
-                albumpath = row[1].encode('utf-8')
+                albumpath = str(row[1].encode('utf-8'))
                 albumsupdated.append(albumpath[albumpath.rfind("/")+1:len(albumpath)])
                 if self.fixMD.scanFiles(albumpath,row[0]):
                     self.db.setSnatchedChecked(row[0])
                     continue
                 else:
-                    break
-                    print "update from db failed!"
+                    print("update from db failed!")
+                    break                    
 
     def copySnatched(self):
         w_db = DB()
@@ -216,10 +216,10 @@ class Sync():
                 if os.path.exists(self.watchfolder + row[0]):
                     shutil.copytree(self.watchfolder + row[0], destinationPath)
                     copied = copied + 1
-                    print "%d copied %s to %s with id: %s" % (copied, row[0], destinationPath, row[1])
+                    print("%d copied %s to %s with id: %s" % (copied, row[0], destinationPath, row[1]))
                     self.curs2.execute("update snatched set copied = 1, fixed_dir = ?, date = ? where torrent_id = ?", (destinationPath, self.getFolderCreationDate(self.watchfolder + row[0]), row[1]))
                 else:
-                    print "!!!!%s folder not found, cannot be copied to destination folder" % row[0]
+                    print("!!!!%s folder not found, cannot be copied to destination folder" % row[0])
                     self.curs2.execute("update snatched set copied = 2, fixed_dir = ? where torrent_id = ?", (destinationPath, row[1]))
                     if os.path.exists("error"):
                         input = open ("error", "r")
@@ -229,21 +229,21 @@ class Sync():
                     f.write("!!!!torrent %d  not found, cannot be copied to destination folder \n%s" % (row[1], input))
                     f.close()
             elif os.path.exists(destinationPath) and os.path.exists(self.watchfolder + row[0]):
-                    print "%s already copied to %s with id: %s" % (row[0], destinationPath, row[1])
+                    print("%s already copied to %s with id: %s" % (row[0], destinationPath, row[1]))
                     self.curs2.execute("update snatched set copied = 1, fixed_dir = ?, date = ? where torrent_id = ?", (destinationPath, self.getFolderCreationDate(self.watchfolder + row[0]), row[1]))
             elif os.path.exists(destinationPath) and not os.path.exists(self.watchfolder + row[0]):
-                    print "missing origin folder %s with id: %s, did you delete it?" % (self.watchfolder + row[0], row[1])
+                    print("missing origin folder %s with id: %s, did you delete it?" % (self.watchfolder + row[0], row[1]))
                     self.curs2.execute("update snatched set copied = 1, fixed_dir = ?, date = ? where torrent_id = ?", (destinationPath, self.getFolderCreationDate(destinationPath), row[1]))
 
 
 
         w_db.conn.commit()
         w_db.conn.close()
-        print "all copied, proceed check files meta tags:"
+        print("all copied, proceed check files meta tags:")
         self.updateMP3MetaFromLocalDB()
-        print "all files checked"
+        print("all files checked")
         if self.config.get("predatum", "enabled") == '1':
-            print "proceed to update predatum:"
+            print("proceed to update predatum:")
             import predatumconnector
             predatum = predatumconnector.Connector(self.config)
             predatum.updateFromDB()

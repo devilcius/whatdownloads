@@ -19,7 +19,7 @@ class HeaderNotFoundError(error, IOError): pass
 class InvalidMPEGHeader(error, IOError): pass
 
 # Mode values.
-STEREO, JOINTSTEREO, DUALCHANNEL, MONO = range(4)
+STEREO, JOINTSTEREO, DUALCHANNEL, MONO = list(range(4))
 
 class MPEGInfo(object):
     """MPEG audio stream information
@@ -55,7 +55,7 @@ class MPEGInfo(object):
 
     # Map (version, layer) tuples to bitrates.
     __BITRATE = {
-        (1, 1): range(0, 480, 32),
+        (1, 1): list(range(0, 480, 32)),
         (1, 2): [0, 32, 48, 56, 64, 80, 96, 112,128,160,192,224,256,320,384],
         (1, 3): [0, 32, 40, 48, 56, 64, 80, 96, 112,128,160,192,224,256,320],
         (2, 1): [0, 32, 48, 56, 64, 80, 96, 112,128,144,160,176,192,224,256],
@@ -107,7 +107,7 @@ class MPEGInfo(object):
         # and 90% through the file.
         for i in [offset, 0.3 * size, 0.6 * size, 0.9 * size]:
             try: self.__try(fileobj, int(i), size - offset)
-            except error, e: pass
+            except error as e: pass
             else: break
         # If we can't find any two consecutive frames, try to find just
         # one frame back at the original offset given.
@@ -126,7 +126,7 @@ class MPEGInfo(object):
         # is assuming the offset didn't lie.
         data = fileobj.read(32768)
 
-        frame_1 = data.find("\xff")
+        frame_1 = data.find(b"\xff")
         while 0 <= frame_1 <= len(data) - 4:
             frame_data = struct.unpack(">I", data[frame_1:frame_1 + 4])[0]
             if (frame_data >> 16) & 0xE0 != 0xE0:
@@ -176,7 +176,7 @@ class MPEGInfo(object):
             possible = frame_1 + frame_length
             if possible > len(data) + 4:
                 raise HeaderNotFoundError("can't sync to second MPEG frame")
-            frame_data = struct.unpack(">H", data[possible:possible + 2])[0]
+            frame_data = struct.unpack(">H", data[int(possible):int(possible) + 2])[0]
             if frame_data & 0xFFE0 != 0xFFE0:
                 raise HeaderNotFoundError("can't sync to second MPEG frame")
 
@@ -191,9 +191,9 @@ class MPEGInfo(object):
         lame_cbr = False
         try:
             try:
-                xing = data[:-4].index("Xing")
+                xing = data[:-4].index(b"Xing")
             except ValueError:
-                xing = data[:-4].index("Info")
+                xing = data[:-4].index(b"Info")
                 lame_cbr = True
         except ValueError:
             # Try to find/parse the VBRI header, which trumps the above length
@@ -219,18 +219,17 @@ class MPEGInfo(object):
                 samples = float(frame_size * frame_count)
                 self.length = (samples / self.sample_rate) or self.length
             if not lame_cbr and flags & 0x2:
-                bytes = struct.unpack('>I', data[xing + 12:xing + 16])[0]
-                self.bitrate = int((bytes * 8) // self.length)
+                f_bytes = struct.unpack('>I', data[xing + 12:xing + 16])[0]
+                self.bitrate = int((f_bytes * 8) // self.length)
             self.encoder = data[xing + 120:xing + 129]
 
-        if self.encoder and self.encoder.startswith('LAME'):
+        if self.encoder and self.encoder.startswith(b'LAME'):
             lame = xing + 120
             linfo = {}
-            linfo['vbr_method'] = struct.unpack('B', data[lame + 9])[0] & 0xF
-            linfo['lowpass'] = struct.unpack('B', data[lame + 10])[0]
-            linfo['ath_type'] = struct.unpack('B', data[lame + 19])[0] & 0xF
-            linfo['preset'] = struct.unpack('>H', data[lame + 26:lame + 28]
-                                            )[0] & 0x1FF
+            linfo['vbr_method'] = struct.unpack('B', bytes([data[lame + 9]]))[0] & 0xF
+            linfo['lowpass'] = struct.unpack('B', bytes([data[lame + 10]]))[0]
+            linfo['ath_type'] = struct.unpack('B', bytes([data[lame + 19]]))[0] & 0xF
+            linfo['preset'] = struct.unpack('>H', data[lame + 26:lame + 28])[0] & 0x1FF
             self.lame_info = linfo
             self.lame_preset = self._guess_lame_preset()
 
@@ -272,7 +271,7 @@ class MPEGInfo(object):
                 pass
 
         try:
-            major, minor = self.encoder[4:8].split('.', 1)
+            major, minor = self.encoder[4:8].split(b'.', 1)
             version = (int(major), int(minor))
         except ValueError:
             version = (-1, 0)

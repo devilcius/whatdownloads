@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # coding=utf-8
-from htmlentitydefs import name2codepoint as n2cp
+from html.entities import name2codepoint as n2cp
 import re
 import unicodedata
 import string
@@ -8,12 +8,12 @@ import string
 def substitute_entity(match):
     ent = match.group(2)
     if match.group(1) == "#":
-        return unichr(int(ent))
+        return chr(int(ent))
     else:
         cp = n2cp.get(ent)
 
         if cp:
-            return unichr(cp)
+            return chr(cp)
         else:
             return match.group()
 
@@ -42,18 +42,18 @@ def unescape(text):
             # character reference
             try:
                 if text[:3] == "&#x":
-                    return unichr(int(text[3:-1], 16))
+                    return chr(int(text[3:-1], 16))
                 else:
-                    return unichr(int(text[2:-1]))
+                    return chr(int(text[2:-1]))
             except ValueError:
                 pass
         elif text[:1] == "&":
-            import htmlentitydefs
-            entity = htmlentitydefs.entitydefs.get(text[1:-1])
+            import html.entities
+            entity = html.entities.entitydefs.get(text[1:-1])
             if entity:
                 if entity[:2] == "&#":
                     try:
-                        return unichr(int(entity[2:-1]))
+                        return chr(int(entity[2:-1]))
                     except ValueError:
                         pass
                 if entity[:1] in htmlCodes:
@@ -63,11 +63,11 @@ def unescape(text):
                         pass
 
                 else:
-                    return unicode(entity, "iso-8859-1")
+                    return str(entity, "iso-8859-1")
         else:
             # named entity
             try:
-                text = unichr(htmlentitydefs.name2codepoint[text[1:-1]])
+                text = chr(html.entities.name2codepoint[text[1:-1]])
             except KeyError:
                 pass
         return text # leave as is
@@ -77,5 +77,7 @@ validchars = "-_.()[] %s%s" % (string.ascii_letters, string.digits)
 
 def removeDisallowedFilenameChars(filename):
     cleanedFilename = unicodedata.normalize('NFKD', filename).encode('ASCII', 'ignore')
-    return ''.join(c for c in cleanedFilename if c in validchars)
+    extraCleanedFilename = ''.join(c for c in cleanedFilename.decode('utf-8') if c in validchars)
+
+    return extraCleanedFilename
 
