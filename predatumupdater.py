@@ -82,7 +82,7 @@ class DataBase():
 
 
     def folderAlreadyChecked(self, folder_name):
-
+                
         return self.conn.execute("select id from tracks where folder_path = ? ",(folder_name,)).fetchone() != None
 
 class AudioFile():

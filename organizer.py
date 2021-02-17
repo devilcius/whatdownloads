@@ -102,7 +102,7 @@ class FixMetadata():
         audio[tag] = value
         audio.save()
 
-    def scanFiles(self,folderpath, id):
+    def scanFiles(self, folderpath, id):
         for root, dirs, files in os.walk(folderpath):
             print("about to check %s" % root)
             badTags = False
@@ -111,7 +111,7 @@ class FixMetadata():
             mp3Data = []
             for file in [f for f in files]:
                 if self.isFlacFile(os.path.join(root,file)) and os.path.splitext(os.path.join(root,file))[1] == '.flac':
-                    flacData = FLAC((os.path.join(root,file)))
+                    flacData = FLAC((os.path.join(root,file)))                 
                     for tag in metaTags:
                         if tag not in flacData  or tag == '':
                             print("no %s tag found in %s" % (tag,file))
@@ -171,9 +171,9 @@ class Sync():
 
         for row in foldersToUpdate:
             if row[1]:
-                albumpath = str(row[1].encode('utf-8'))
+                albumpath = row[1]
                 albumsupdated.append(albumpath[albumpath.rfind("/")+1:len(albumpath)])
-                if self.fixMD.scanFiles(albumpath,row[0]):
+                if self.fixMD.scanFiles(albumpath, row[0]):
                     self.db.setSnatchedChecked(row[0])
                     continue
                 else:
