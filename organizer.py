@@ -105,45 +105,32 @@ class FixMetadata():
     def scanFiles(self, folderpath, id):
         for root, dirs, files in os.walk(folderpath):
             print("about to check %s" % root)
-            badTags = False
             #meta tags that can be retrieved from what.cd
             metaTags = ['album', 'artist','genre','date']
-            mp3Data = []
             for file in [f for f in files]:
-                if self.isFlacFile(os.path.join(root,file)) and os.path.splitext(os.path.join(root,file))[1] == '.flac':
-                    flacData = FLAC((os.path.join(root,file)))                 
-                    for tag in metaTags:
-                        if tag not in flacData  or tag == '':
-                            print("no %s tag found in %s" % (tag,file))
-                            badTags = True
-                            whattag = self.db.findTagInWhatSnatched(id, tag)
-                            if whattag:
-                                self.updateFlacMeta((os.path.join(root,file)), tag, whattag)
-                                print("updated from what.cd!")
-                            else:
-                                print("not found in local DB neither...")
+                if self.isFlacFile(os.path.join(root,file)) and os.path.splitext(os.path.join(root,file))[1] == '.flac':    
+                    for tag in metaTags: # updates all tags from redacted. More reliable than user tagging
+                        whattag = self.db.findTagInWhatSnatched(id, tag)
+                        if whattag:
+                            self.updateFlacMeta((os.path.join(root,file)), tag, whattag)
+                            print("updated {} tag from redacted.cd!".format(tag))
+                        else:
+                            print("No tag found in local DB ...")
 
                 elif self.isMP3File(os.path.join(root,file)) and os.path.splitext(os.path.join(root,file))[1] == '.mp3':
                     try:
-                        mp3Data = EasyID3((os.path.join(root,file)))
-                        for tag in metaTags:
-
-                            if tag not in mp3Data or tag == '':
-                                print("no %s tag found in %s" % (tag,file))
-                                badTags = True
-                                whattag = self.db.findTagInWhatSnatched(id, tag)
-                                if whattag:
-                                    self.updateMP3Meta((os.path.join(root,file)), tag, whattag)
-                                    print("updated from what.cd!")
-                                else:
-                                    print("not found in local DB neither...")
+                        for tag in metaTags: # updates all tags from redacted. More reliable than user tagging
+                            whattag = self.db.findTagInWhatSnatched(id, tag)
+                            if whattag:
+                                self.updateMP3Meta((os.path.join(root,file)), tag, whattag)
+                                print("updated {} tag from redacted.cd!".format(tag))
+                            else:
+                                print("no tag found found in local DB...")
                     except:
                         print("mp3 file corrupt??")
 
-            if badTags:
-                badTags = False
-            else:
-                print("All tags ok")
+            
+            print("All tags updated!")
 
         return True
 
