@@ -199,7 +199,7 @@ class MPEGInfo(object):
             # Try to find/parse the VBRI header, which trumps the above length
             # calculation.
             try:
-                vbri = data[:-24].index("VBRI")
+                vbri = data[:-24].index(b"VBRI")
             except ValueError: pass
             else:
                 # If a VBRI header was found, this is definitely MPEG audio.
