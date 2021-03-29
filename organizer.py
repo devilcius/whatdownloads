@@ -111,6 +111,8 @@ class FixMetadata():
                 if self.isFlacFile(os.path.join(root,file)) and os.path.splitext(os.path.join(root,file))[1] == '.flac':    
                     for tag in metaTags: # updates all tags from redacted. More reliable than user tagging
                         whattag = self.db.findTagInWhatSnatched(id, tag)
+                        if tag == 'artist' and whattag == 'Various Artists':
+                            continue
                         if whattag:
                             self.updateFlacMeta((os.path.join(root,file)), tag, whattag)
                             print("updated {} tag from redacted.cd!".format(tag))
@@ -121,6 +123,8 @@ class FixMetadata():
                     try:
                         for tag in metaTags: # updates all tags from redacted. More reliable than user tagging
                             whattag = self.db.findTagInWhatSnatched(id, tag)
+                            if tag == 'artist' and whattag == 'Various Artists':
+                                continue                            
                             if whattag:
                                 self.updateMP3Meta((os.path.join(root,file)), tag, whattag)
                                 print("updated {} tag from redacted.cd!".format(tag))
