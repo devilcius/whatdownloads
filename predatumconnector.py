@@ -37,9 +37,11 @@ class Connector():
         self.conn.text_factory = str
         self.curs = self.conn.cursor()
         self.config = config
-        self.gmail =  config.get("gmail","address")
-        self.gpass =  config.get("gmail","password")
-        self.grecipient = config.get("gmail","recipient")
+        self.mail_user =  config.get("mail","user")
+        self.mail_pass =  config.get("mail","password")
+        self.mail_recipient = config.get("mail","recipient")
+        self.mail_smtp = config.get("mail","smtp")
+        self.mail_port = config.get("mail","port")
         self.createAuditTable()
 
     def createAuditTable(self):
@@ -106,16 +108,14 @@ class Connector():
 
         # Send the message via our own SMTP server
 
-        s = smtplib.SMTP("smtp.gmail.com", 587)
+        s = smtplib.SMTP(self.mail_smtp, self.mail_port)
         s.ehlo()
         s.starttls()
         s.ehlo()
-
-        #s = smtplib.SMTP_SSL('smtp.gmail.com', 465)
         try:
-            print('INFO','Emailing %s with a notification.'%self.grecipient)
-            s.login(self.gmail, self.gpass)
-            s.sendmail(self.gmail, self.grecipient, msg.as_string())
+            print('INFO','Emailing %s with a notification.'%self.mail_recipient)
+            s.login(self.mail_user, self.mail_pass)
+            s.sendmail(self.mail_user, self.mail_recipient, msg.as_string())
             s.quit()
         except Exception as e:
             print('ERROR', 'Could not send notify email. Error: %s'%e.smtp_error)
